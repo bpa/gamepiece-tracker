@@ -8,21 +8,25 @@ use Tk;
 use Tk::Table;
 use FindBin '$Bin';
 use File::Spec::Functions;
+use Data::Dumper;
 
 my $file = catdir( $Bin, 'pieces.json' );
-my $data = -r $file ? JSON::Any->jsonToObj( read_file( $file ) ) : {};
+my $data = -r $file ? JSON::Any->jsonToObj( read_file($file) ) : {};
 my $found = $data->{found};
 
 my @order;
 my @prizes;
 my %prize;
+my @prize_map;
 while (<DATA>) {
     chomp;
     my ( $name, $from, $to ) = split /\t/;
+    next unless $name;
     for my $i ( $from .. $to ) {
-		push @order, $name unless exists $prize{$name};
+        push @order, $name unless exists $prize{$name};
         $prizes[$i] = $name;
         push @{ $prize{$name} }, $i;
+        $prize_map[$i] = [ $#order, $#{ $prize{$name} } ];
     }
 }
 my $codeText = "";
@@ -39,7 +43,7 @@ $frame1->pack(
 );
 
 $frame1->Label( -text => "Piece: " )->pack( -side => "left", -anchor => "w" );
-my $entry;
+my ( $entry, $table );
 $entry = $frame1->Entry(
     -validate        => 'key',
     -validatecommand => sub {
@@ -57,6 +61,12 @@ $entry->bind(
         $found->[$ind]++;
         $entry->delete( 0, 'end' );
         $codeText = '';
+        if ( defined $prize_map[$ind] ) {
+            my ( $r, $c ) = @{ $prize_map[$ind] };
+            $table->get( $r, $c + 1 )->configure( -text => $found->[$ind] );
+        }
+        write_file( catdir( $Bin, 'pieces.json' ),
+            JSON::Any->objToJson( { found => $found } ) );
     } );
 
 $entry->pack(
@@ -67,35 +77,43 @@ $entry->pack(
 );
 $entry->focus;
 
-my $frame2 = $mw->Frame(
-    -borderwidth => 2,
-    -relief      => 'ridge'
-);
-$frame2->pack(
-    -side   => 'top',
-    -expand => 'y',
-    -fill   => "x"
-);
-
-my $codeLabel = $frame2->Label( -textvariable => \$codeText, )->pack( -side => "left", -anchor => "w", -expand => 'yes', -fill=>'x' );
-my $tableFrame = $mw->Frame(-borderwidth=>2, -relief=>'raised')->pack( -expand=>'yes', -fill=>'both');
+my $codeLabel = $mw->Label( -textvariable => \$codeText, )
+  ->pack( -side => "top", -anchor => "w", -expand => 'no', -fill => 'x' );
+my $tableFrame = $mw->Frame( -borderwidth => 2, -relief => 'raised' )
+  ->pack( -expand => 'yes', -fill => 'both', -side => 'bottom' );
 my $cols = 0;
-for (values %prize) {
-	$cols = @$_ if @$_ > $cols;
+for ( values %prize ) {
+    $cols = @$_ if @$_ > $cols;
 }
-my $table = $tableFrame->Table(-columns=>$cols, -rows=>scalar(%prize), -relief=>'raised', -scrollbars=>'e');
-for my $r (0 .. @order) {
-	my $tmp = $table->Label(-text=>$order[$r], -padx=>2, -anchor=>'w', -background=>'white', -relief=>'groove');
-	$table->put($r, 0, $tmp);
+$table = $tableFrame->Table(
+    -columns    => $cols,
+    -rows       => scalar(%prize),
+    -relief     => 'raised',
+    -scrollbars => 'e'
+);
+for my $r ( 0 .. $#order ) {
+    my $tmp = $table->Label(
+        -text       => $order[$r],
+        -anchor     => 'w',
+        -background => 'white',
+        -relief     => 'groove'
+    );
+    $table->put( $r, 0, $tmp );
+    my $pieces = $prize{ $order[$r] };
+    for my $c ( 0 .. $#$pieces ) {
+        $table->put(
+            $r,
+            $c + 1,
+            $table->Label(
+                -text       => $found->[ $pieces->[$c] ],
+                -anchor     => 'e',
+                -background => $found->[ $pieces->[$c] ] ? 'white' : 'red',
+                -relief     => 'groove',
+            ) );
+    }
 }
-$table->pack(-expand=>'yes', -fill=>'both');
+$table->pack( -expand => 'yes', -fill => 'both' );
 
-$mw->Button(
-    -text    => "Exit",
-    -command => sub {
-        write_file( catdir( $Bin, 'pieces.json' ), JSON::Any->objToJson( { found => $found } ) );
-        exit;
-    } )->pack( -side => "bottom" );
 MainLoop;
 
 __DATA__
