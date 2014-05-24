@@ -9,6 +9,7 @@ use Tk::Table;
 use FindBin '$Bin';
 use File::Spec::Functions;
 use Data::Dumper;
+use Win32::Sound;
 
 my $file = catdir( $Bin, 'pieces.json' );
 my $data = -r $file ? JSON::Any->jsonToObj( read_file($file) ) : {};
@@ -57,16 +58,25 @@ $entry = $frame1->Entry(
 $entry->bind(
     '<Return>' => sub {
         my $ind = $entry->get();
-        return unless $ind;
+	return unless $ind;
         $found->[$ind]++;
         $entry->delete( 0, 'end' );
         $codeText = '';
-        if ( defined $prize_map[$ind] ) {
-            my ( $r, $c ) = @{ $prize_map[$ind] };
-            $table->get( $r, $c + 1 )->configure( -text => $found->[$ind] );
-        }
-        write_file( catdir( $Bin, 'pieces.json' ),
-            JSON::Any->objToJson( { found => $found } ) );
+	if ( defined $prize_map[$ind] ) {
+		my ( $r, $c ) = @{ $prize_map[$ind] };
+		$table->get( $r, $c + 1 )->configure( -text => $found->[$ind] );
+		if ($found->[$ind] == 1) {
+			Win32::Sound::Play('C:\Windows\Media\tada.wav')	;
+		}
+		else {
+			Win32::Sound::Play('SystemDefault');
+		}
+		write_file( catdir( $Bin, 'pieces.json' ),
+		    JSON::Any->objToJson( { found => $found } ) );
+	}
+	else {
+		Win32::Sound::Play('SystemExclamation');
+	}
     } );
 
 $entry->pack(
